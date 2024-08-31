@@ -1,11 +1,12 @@
-from django.db.models.functions import Now
-from django.db.models import Count
 from django.shortcuts import get_object_or_404, render, redirect
 from django.contrib.auth.decorators import login_required
-from .forms import PostForm, EditUserForm, CommentForm
-from .constants import POSTS_LIMIT
-from .models import Category, Post, Comment, User
+from django.db.models import Count
+from django.db.models.functions import Now
 from django.core.paginator import Paginator
+
+from .constants import POSTS_LIMIT
+from .forms import PostForm, EditUserForm, CommentForm
+from .models import Category, Post, Comment, User
 
 
 def get_posts(post_objects):
@@ -16,23 +17,19 @@ def get_posts(post_objects):
     ).annotate(comment_count=Count('comments'))
 
 
-def pagination(request, items):
-    num_pages = request.GET.get('page')
-    return Paginator(items, POSTS_LIMIT).get_page(num_pages)
+def pagination(items, num_pages=POSTS_LIMIT):
+    return Paginator(items, num_pages).get_page(num_pages)
 
 
 @login_required
 def create_post(request):
     template = 'blog/create.html'
-    if request.method == 'POST':
-        form = PostForm(request.POST or None, files=request.FILES or None)
-        if form.is_valid():
-            post = form.save(commit=False)
-            post.author = request.user
-            post.save()
-            return redirect('blog:profile', request.user)
-    else:
-        form = PostForm()
+    form = PostForm(request.POST or None, files=request.FILES or None)
+    if form.is_valid():
+        post = form.save(commit=False)
+        post.author = request.user
+        post.save()
+        return redirect('blog:profile', request.user)
     context = {'form': form}
     return render(request, template, context)
 
@@ -59,13 +56,10 @@ def edit_post(request, post_id):
 @login_required
 def edit_profile(request):
     template = 'blog/user.html'
-    if request.method == 'POST':
-        form = EditUserForm(request.POST, instance=request.user)
-        if form.is_valid():
-            form.save()
-            return redirect('blog:profile', request.user)
-    else:
-        form = EditUserForm(instance=request.user)
+    form = EditUserForm(request.POST or None, instance=request.user)
+    if form.is_valid():
+        form.save()
+        return redirect('blog:profile', request.user)
     context = {'form': form}
     return render(request, template, context)
 
@@ -89,7 +83,7 @@ def delete_post(request, post_id):
 @login_required
 def add_comment(request, post_id):
     post = get_object_or_404(Post, id=post_id)
-    form = CommentForm(request.POST or None)
+    form = CommentForm(request.POST)
     if form.is_valid():
         comment = form.save(commit=False)
         comment.post = post
@@ -133,7 +127,7 @@ def index(request):
         Post.objects
     ).order_by('-pub_date')[:POSTS_LIMIT]
     template = 'blog/index.html'
-    page_obj = pagination(request, post_list)
+    page_obj = pagination(post_list)
     context = {'page_obj': page_obj}
     return render(request, template, context)
 
@@ -157,7 +151,7 @@ def category_posts(request, category_slug):
     )
     post_list = get_posts(category.posts).order_by('-pub_date')
     template = 'blog/category.html'
-    page_obj = pagination(request, post_list)
+    page_obj = pagination(post_list)
     context = {'category': category, 'page_obj': page_obj}
     return render(request, template, context)
 
@@ -169,6 +163,6 @@ def profile(request, username):
         comment_count=Count('comments')).order_by(
         '-pub_date'
     )
-    page_obj = pagination(request, posts_list)
+    page_obj = pagination(posts_list)
     context = {'profile': user, 'page_obj': page_obj}
     return render(request, template, context)
