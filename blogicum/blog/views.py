@@ -17,8 +17,8 @@ def get_posts(post_objects):
     ).annotate(comment_count=Count('comments'))
 
 
-def pagination(items, num_pages=POSTS_LIMIT):
-    return Paginator(items, num_pages).get_page(num_pages)
+def pagination(items, num_pages, count=POSTS_LIMIT):
+    return Paginator(items, count).get_page(num_pages)
 
 
 @login_required
@@ -40,15 +40,11 @@ def edit_post(request, post_id):
     post = get_object_or_404(Post, id=post_id)
     if request.user != post.author:
         return redirect('blog:post_detail', post_id)
-
-    if request.method == "POST":
-        form = PostForm(
-            request.POST, files=request.FILES or None, instance=post)
-        if form.is_valid():
-            post.save()
-            return redirect('blog:post_detail', post_id)
-    else:
-        form = PostForm(instance=post)
+    form = PostForm(
+        request.POST or None, files=request.FILES or None, instance=post)
+    if form.is_valid():
+        post.save()
+        return redirect('blog:post_detail', post_id)
     context = {'form': form}
     return render(request, template, context)
 
@@ -70,12 +66,8 @@ def delete_post(request, post_id):
     post = get_object_or_404(Post, id=post_id)
     if request.user != post.author:
         return redirect('blog:post_detail', post_id)
-    if request.method == 'POST':
-        form = PostForm(request.POST or None, instance=post)
-        post.delete()
-        return redirect('blog:index')
-    else:
-        form = PostForm(instance=post)
+    form = PostForm(request.POST or None, instance=post)
+    post.delete()
     context = {'form': form}
     return render(request, template, context)
 
@@ -98,13 +90,10 @@ def edit_comment(request, post_id, comment_id):
     comment = get_object_or_404(Comment, id=comment_id)
     if request.user != comment.author:
         return redirect('blog:post_detail', post_id)
-    if request.method == "POST":
-        form = CommentForm(request.POST or None, instance=comment)
-        if form.is_valid():
-            form.save()
-            return redirect('blog:post_detail', post_id)
-    else:
-        form = CommentForm(instance=comment)
+    form = CommentForm(request.POST or None, instance=comment)
+    if form.is_valid():
+        form.save()
+        return redirect('blog:post_detail', post_id)
     context = {'form': form, 'comment': comment}
     return render(request, template, context)
 
@@ -127,7 +116,7 @@ def index(request):
         Post.objects
     ).order_by('-pub_date')[:POSTS_LIMIT]
     template = 'blog/index.html'
-    page_obj = pagination(post_list)
+    page_obj = pagination(post_list, request.GET.get('page'))
     context = {'page_obj': page_obj}
     return render(request, template, context)
 
@@ -151,7 +140,7 @@ def category_posts(request, category_slug):
     )
     post_list = get_posts(category.posts).order_by('-pub_date')
     template = 'blog/category.html'
-    page_obj = pagination(post_list)
+    page_obj = pagination(post_list, request.GET.get('page'))
     context = {'category': category, 'page_obj': page_obj}
     return render(request, template, context)
 
@@ -163,6 +152,6 @@ def profile(request, username):
         comment_count=Count('comments')).order_by(
         '-pub_date'
     )
-    page_obj = pagination(posts_list)
+    page_obj = pagination(posts_list, request.GET.get('page'))
     context = {'profile': user, 'page_obj': page_obj}
     return render(request, template, context)
